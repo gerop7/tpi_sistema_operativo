@@ -32,6 +32,7 @@ class OperatingSystem:
         # Correr hasta que todos terminen
         while len(self.finished) < self.total_processes:
             if self.scheduler.has_ready_process():
+                time.sleep(0.05)  # pequeña pausa para dejar mostrar E/S completada
                 proc = self.scheduler.dispatch()
 
                 # Si el proceso todavía no ejecutó y requiere E/S inicial
@@ -58,7 +59,6 @@ class OperatingSystem:
             else:
                 # CPU ociosa → verificar si hay procesos bloqueados por memoria
                 self._retry_memory()
-                time.sleep(0.2)
 
         # Fin de simulación
         self.io.stop()

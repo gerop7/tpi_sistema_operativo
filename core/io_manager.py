@@ -1,11 +1,10 @@
-# core/io_manager.py
 import threading, time
 from core.process import ProcessState
 
 class IOManager:
-    def __init__(self, scheduler):
+    def __init__(self, scheduler, buffer_size):
         self.buffer = []
-        self.MAX_SIZE = 3
+        self.MAX_SIZE = buffer_size
         self.mutex = threading.Semaphore(1)
         self.empty = threading.Semaphore(self.MAX_SIZE)
         self.full  = threading.Semaphore(0)
@@ -15,12 +14,15 @@ class IOManager:
         self._worker.start()
 
     def request_io(self, process):
-        self.empty.acquire()
-        self.mutex.acquire()
-        self.buffer.append(process)
+        if len(self.buffer) >= self.MAX_SIZE:
+            print(f"[IO] Búfer lleno. P{process.pid} espera a que se libere espacio.")
+
+        self.empty.acquire()                # Espera hasta que haya espacio disponible
+        self.mutex.acquire()                # Entra en sección crítica
+        self.buffer.append(process)         # Agrega proceso al buffer
         print(f"[IO] P{process.pid} genera petición de E/S.")
-        self.mutex.release()
-        self.full.release()
+        self.mutex.release()                # Sale de la sección crítica
+        self.full.release()                 # Avisa al consumidor que hay algo que procesar
         process.state = ProcessState.BLOCKED
 
     def handle_io(self):
@@ -41,7 +43,6 @@ class IOManager:
             print(f"[IO] E/S de P{proc.pid} completada, vuelve a listos.")
 
     def has_pending(self):
-        # ¿Queda trabajo de E/S por hacer?
         return len(self.buffer) > 0
 
     def stop(self):

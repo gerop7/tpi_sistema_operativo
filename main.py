@@ -9,10 +9,16 @@ if __name__ == "__main__":
     with open("config.json") as f:
         config = json.load(f)
 
+    num = config["num_frames"]
+    buffer_size = config["io_buffer_size"]
+
     scheduler = Scheduler()
-    memory = MemoryManager(config["num_frames"])
-    io_manager = IOManager(scheduler)
+    memory = MemoryManager(num)
+    io_manager = IOManager(scheduler, config["io_buffer_size"])
     os = OperatingSystem(scheduler, memory, io_manager)
+
+    print("[FRAMES] = ",num)
+    print("[IO BUFFER SIZE] = ",buffer_size)
 
     # Crear y cargar procesos
     for p_data in config["processes"]:
