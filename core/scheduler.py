@@ -8,7 +8,7 @@ class Scheduler:
     def add_process(self, process):
         process.state = ProcessState.READY
         self.ready_queue.append(process)
-        print(f"[SCHEDULER] P{process.pid} agregado a cola de listos.")
+        print(f"[SCHEDULER] P{process.pid} agregado a cola de listos.\n")
 
     def dispatch(self):
         if not self.ready_queue:

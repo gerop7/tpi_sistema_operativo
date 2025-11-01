@@ -1,3 +1,4 @@
+
 import time
 from core.process import ProcessState
 
@@ -8,38 +9,59 @@ class OperatingSystem:
         self.io = io_manager
         self.blocked_for_memory = []
         self.finished = []
+        self.total_processes = 0
 
     def load_process(self, process):
-        if self.memory.allocate(process):
+        self.total_processes += 1
+        if self.memory.allocate(process, noisy=True):
             self.scheduler.add_process(process)
         else:
             process.state = ProcessState.BLOCKED
             self.blocked_for_memory.append(process)
-            print(f"[OS] P{process.pid} bloqueado por falta de memoria.")
+            print(f"[OS] P{process.pid} bloqueado por falta de memoria.\n")
+
+    def _retry_memory(self):
+        for p in self.blocked_for_memory[:]:
+            if self.memory.allocate(p, noisy=False):
+                self.scheduler.add_process(p)
+                self.blocked_for_memory.remove(p)
 
     def run(self):
         print("\n========== INICIO DE LA SIMULACIÓN ==========\n")
-        while self.scheduler.has_ready_process():
-            process = self.scheduler.dispatch()
-            print(f"[CPU] Ejecutando P{process.pid} (rafaga restante: {process.cpu_burst})")
 
-            time.sleep(1)  # Simula ejecución CPU
-            process.cpu_burst -= 1
+        # Correr hasta que todos terminen
+        while len(self.finished) < self.total_processes:
+            if self.scheduler.has_ready_process():
+                proc = self.scheduler.dispatch()
 
-            if process.cpu_burst == 0:
-                process.state = ProcessState.TERMINATED
-                self.memory.free(process)
-                self.finished.append(process)
-                print(f"[CPU] P{process.pid} finalizado.")
+                # Si el proceso todavía no ejecutó y requiere E/S inicial
+                if getattr(proc, "io_done", False) is False and proc.io_time > 0:
+                    self.io.request_io(proc)
+                    proc.io_done = True  # marcar que ya se hizo la E/S una vez
+                    print(f"[CPU] P{proc.pid} bloqueado por E/S inicial.\n")
+                    continue
+
+                # Ejecutar CPU completo (no expropiativo)
+                print(f"[CPU] Ejecutando P{proc.pid} (ráfaga total: {proc.cpu_burst})")
+                time.sleep(proc.cpu_burst)
+                proc.cpu_burst = 0
+
+                # Al terminar CPU, liberar memoria
+                proc.state = ProcessState.TERMINATED
+                self.memory.free(proc)
+                self.finished.append(proc)
+                print(f"[CPU] P{proc.pid} finalizado.\n")
+
+                # Al liberar memoria, intentar cargar los que estaban bloqueados
+                self._retry_memory()
+
             else:
-                # Cada proceso hace una operación de E/S entre ráfagas
-                self.io.request_io(process)
+                # CPU ociosa → verificar si hay procesos bloqueados por memoria
+                self._retry_memory()
+                time.sleep(0.2)
 
-            # Intentar cargar procesos bloqueados por memoria
-            for p in self.blocked_for_memory[:]:
-                if self.memory.allocate(p):
-                    self.scheduler.add_process(p)
-                    self.blocked_for_memory.remove(p)
+        # Fin de simulación
+        self.io.stop()
         print("\n========== SIMULACIÓN FINALIZADA ==========\n")
         self.show_summary()
 
