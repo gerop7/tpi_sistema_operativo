@@ -77,6 +77,27 @@ class OperatingSystem:
                     proc.remaining_cpu -= 1
                     ticks += 1
                 
+                #Disparo de E/S cuando se llegue a un tick aleatorio
+                if proc.io_time > 0 and not proc.io_done and proc.next_io_at is not None and ticks == proc.next_io_at:
+                    self.io.request_io(proc) #manda el proceso a BLOCKED y al buffer E/S
+                    proc.io_done = True # marca que ya hizo E/S
+                    proc.next_io_at = None #evita otra interrupcion en esta rafaga
+                    print(f"[CPU] P{proc.pid} bloqueado por E/S aleatoria en t={ticks}s.\n")
+                    #salir del while para no seguir ejecutando
+                    fue_interrumpido = True
+                    break
+                
+                if fue_interrumpido:
+                    self._retry_memory()
+                    continue
+                
+                if proc.remaining_cpu == 0:
+                    proc.state = ProcessState.TERMINATED
+                    self.memory.free(proc)
+                    self.finished.append(proc)
+                    print(f"[CPU] P{proc.pid} finalizado.\n")
+                    self._retry_memory()
+                
             else:
                 # CPU ociosa → verificar si hay procesos bloqueados por memoria
                 self._retry_memory()
