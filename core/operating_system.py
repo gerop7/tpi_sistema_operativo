@@ -30,79 +30,46 @@ class OperatingSystem:
     def run(self):
         print("\n========== INICIO DE LA SIMULACIÓN ==========\n")
 
-        # Correr hasta que todos terminen
         while len(self.finished) < self.total_processes:
             if self.scheduler.has_ready_process():
-                time.sleep(0.05)  # pequeña pausa para dejar mostrar E/S completada
+                time.sleep(0.05)
                 proc = self.scheduler.dispatch()
 
-                # Si el proceso todavía no ejecutó y requiere E/S inicial
-                if getattr(proc, "io_done", False) is False and proc.io_time > 0:
+                # Si tiene E/S pendiente por hacer, elige el segundo aleatorio
+                if proc.io_time > 0 and not getattr(proc, "io_done", False):
+                    if proc.remaining_burst > 1:
+                        proc.next_io_at = random.randint(1, proc.remaining_burst - 1)
+                        print(f"[CPU] P{proc.pid} tendrá E/S en t={proc.next_io_at}s de su ráfaga actual.")
+
+                # Si hay E/S planificada
+                if proc.next_io_at is not None:
+                    print(f"[CPU] Ejecutando P{proc.pid} (Ráfaga = {proc.remaining_burst})")
+                    time.sleep(proc.next_io_at)
+                    proc.remaining_burst -= proc.next_io_at
+
+                    # Lanzar operación de E/S
                     self.io.request_io(proc)
-                    proc.io_done = True  # marcar que ya se hizo la E/S una vez
-                    print(f"[CPU] P{proc.pid} bloqueado por E/S inicial.\n")
-                    continue
+                    proc.io_done = True
+                    proc.next_io_at = None
+                    print(f"[CPU] P{proc.pid} bloqueado por E/S.\n")
+                    continue  # salta a la siguiente iteración, CPU queda libre
 
-                # Ejecutar CPU completo (no expropiativo)
-                print(f"[CPU] Ejecutando P{proc.pid} (ráfaga total: {proc.cpu_burst})")
-                time.sleep(proc.cpu_burst)
-                proc.cpu_burst = 0
+                # Si no hay E/S pendiente o ya volvió del I/O
+                if proc.remaining_burst > 0:
+                    print(f"[CPU] Ejecutando P{proc.pid} (Ráfaga = {proc.remaining_burst})")
+                    time.sleep(proc.remaining_burst)
+                    proc.remaining_burst = 0
 
-                # Al terminar CPU, liberar memoria
+                # Proceso terminado
                 proc.state = ProcessState.TERMINATED
                 self.memory.free(proc)
                 self.finished.append(proc)
                 print(f"[CPU] P{proc.pid} finalizado.\n")
 
-                # Al liberar memoria, intentar cargar los que estaban bloqueados
                 self._retry_memory()
-                #Sirve para decidir un punto de E/S aleatorio si corresponde
-                if (proc.io_time >0) and (not getattr(proc,"io_done",False)):
-                    
-                    #se elige un segundo entre 1 y remaining_cpu -1
-                    if proc.remaining_burst > 1:
-                        proc.next_io_at = random.randint(1, proc.remaining_burst - 1)
-                        print(f"[CPU] P{proc.pid} tendrá E/S aleatoria en t={proc.next_io_at}s de su ráfaga actual.")
-                    else:
-                        proc.next_io_at = None
-                
-                #nuevo, bandera y contador de ticks
-                print(f"[CPU] Ejecutando P{proc.pid} (restante: {proc.remaining_burst}s)")
-                ticks = 0
-                fue_interrumpido = False
-                
-                #ejecucion tick a tick
-                while proc.remaining_burst > 0:
-                    time.sleep(1) #1 tick es igual a 1 segundo de CPU
-                    proc.remaining_burst -= 1
-                    ticks += 1
-                
-                #Disparo de E/S cuando se llegue a un tick aleatorio
-                if proc.io_time > 0 and not proc.io_done and proc.next_io_at is not None and ticks == proc.next_io_at:
-                    self.io.request_io(proc) #manda el proceso a BLOCKED y al buffer E/S
-                    proc.io_done = True # marca que ya hizo E/S
-                    proc.next_io_at = None #evita otra interrupcion en esta rafaga
-                    print(f"[CPU] P{proc.pid} bloqueado por E/S aleatoria en t={ticks}s.\n")
-                    #salir del while para no seguir ejecutando
-                    fue_interrumpido = True
-                    break
-                
-                if fue_interrumpido:
-                    self._retry_memory()
-                    continue
-                
-                if proc.remaining_burst == 0:
-                    proc.state = ProcessState.TERMINATED
-                    self.memory.free(proc)
-                    self.finished.append(proc)
-                    print(f"[CPU] P{proc.pid} finalizado.\n")
-                    self._retry_memory()
-                
             else:
-                # CPU ociosa → verificar si hay procesos bloqueados por memoria
                 self._retry_memory()
 
-        # Fin de simulación
         self.io.stop()
         print("\n========== SIMULACIÓN FINALIZADA ==========\n")
         self.show_summary()
