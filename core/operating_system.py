@@ -1,6 +1,7 @@
 
 import time
 from core.process import ProcessState
+import random #nuevo
 
 class OperatingSystem:
     def __init__(self, scheduler, memory, io_manager):
