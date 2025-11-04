@@ -60,21 +60,21 @@ class OperatingSystem:
                 if (proc.io_time >0) and (not getattr(proc,"io_done",False)):
                     
                     #se elige un segundo entre 1 y remaining_cpu -1
-                    if proc.remaining_cpu > 1:
-                        proc.next_io_at = random.randint(1, proc.remaining_cpu - 1)
+                    if proc.remaining_burst > 1:
+                        proc.next_io_at = random.randint(1, proc.remaining_burst - 1)
                         print(f"[CPU] P{proc.pid} tendrá E/S aleatoria en t={proc.next_io_at}s de su ráfaga actual.")
                     else:
                         proc.next_io_at = None
                 
                 #nuevo, bandera y contador de ticks
-                print(f"[CPU] Ejecutando P{proc.pid} (restante: {proc.remaining_cpu}s)")
+                print(f"[CPU] Ejecutando P{proc.pid} (restante: {proc.remaining_burst}s)")
                 ticks = 0
                 fue_interrumpido = False
                 
                 #ejecucion tick a tick
-                while proc.remaining_cpu > 0:
+                while proc.remaining_burst > 0:
                     time.sleep(1) #1 tick es igual a 1 segundo de CPU
-                    proc.remaining_cpu -= 1
+                    proc.remaining_burst -= 1
                     ticks += 1
                 
                 #Disparo de E/S cuando se llegue a un tick aleatorio
@@ -91,7 +91,7 @@ class OperatingSystem:
                     self._retry_memory()
                     continue
                 
-                if proc.remaining_cpu == 0:
+                if proc.remaining_burst == 0:
                     proc.state = ProcessState.TERMINATED
                     self.memory.free(proc)
                     self.finished.append(proc)
