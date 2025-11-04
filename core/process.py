@@ -14,6 +14,12 @@ class Process:
         self.memory_required = memory_required
         self.io_time = io_time
         self.state = ProcessState.NEW
+        
+        #agrego cambios, revisar
+        self.remaining_burst = cpu_burst #tiempo que le faltaria ejecutar
+        self.io_done = False #bandera para ver si ya hizo una E/S
+        self.next_io_at = None # para ver en que segundo de su rafaga restante se interrumpe para E/S
+        
 
     def __repr__(self):
         return f"P{self.pid}({self.state.value})"
